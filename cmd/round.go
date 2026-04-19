@@ -22,7 +22,7 @@ func Round(reader *bufio.Reader, game *solver.Game, allCards []solver.Card, play
 
 	guesser := collectOptionalPlayer(reader, players, "Who made this suggestion? (0 = you)")
 
-	refuter, shownCard := collectRefutation(reader, allCards, players, suspect, location, weapon)
+	refuter, shownCard := collectRefutation(reader, players, guesser, suspect, location, weapon)
 
 	suggestion := solver.NewSuggestion(suspect, location, weapon, guesser, refuter, shownCard)
 
@@ -67,12 +67,14 @@ func collectOptionalPlayer(reader *bufio.Reader, players []*solver.Player, promp
 	return PlayerByIndex(players, n)
 }
 
-// collectRefutation asks whether anyone refuted the suggestion,
-// and if so, whether the card was shown to us directly.
+// collectRefutation asks whether anyone refuted the suggestion.
+// If the guesser is us (nil), the refuter necessarily showed us the card
+// and we collect which one. If the guesser is another player, we can
+// never know which card was shown.
 func collectRefutation(
 	reader *bufio.Reader,
-	allCards []solver.Card,
 	players []*solver.Player,
+	guesser *solver.Player,
 	suspect, location, weapon solver.Card,
 ) (*solver.Player, *solver.Card) {
 	fmt.Println()
@@ -87,29 +89,25 @@ func collectRefutation(
 	}
 
 	refuter := PlayerByIndex(players, n)
-	shownCard := collectShownCard(reader, allCards, suspect, location, weapon)
-	return refuter, shownCard
-}
 
-// collectShownCard asks whether the refuter showed us a card directly.
-// If yes, the user selects which of the three suggested cards was shown.
-func collectShownCard(
-	reader *bufio.Reader,
-	allCards []solver.Card,
-	suspect, location, weapon solver.Card,
-) *solver.Card {
-	fmt.Println()
-	fmt.Println("Did the refuter show YOU the card?")
-	fmt.Println("  1. Yes")
-	fmt.Println("  2. No")
-
-	fmt.Print("Choice: ")
-	n := readInt(reader, 1, 2)
-	if n == 2 {
-		return nil
+	// If we made the suggestion, the refuter always shows us the card.
+	// If another player made the suggestion, we never see the card.
+	if guesser == nil {
+		shownCard := collectShownCard(reader, suspect, location, weapon)
+		return refuter, shownCard
 	}
 
+	return refuter, nil
+}
+
+// collectShownCard asks which of the three suggested cards was shown to us.
+// Only called when we are the guesser.
+func collectShownCard(
+	reader *bufio.Reader,
+	suspect, location, weapon solver.Card,
+) *solver.Card {
 	suggested := []solver.Card{suspect, location, weapon}
+
 	fmt.Println()
 	fmt.Println("Which card was shown to you?")
 	for i, card := range suggested {
